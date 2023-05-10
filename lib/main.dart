@@ -42,37 +42,40 @@ class _MyAppState extends State<MyApp> {
   List<types.Message> messages = [];
   final user = const types.User(id: "user");
   final chatGpt = const types.User(id: "chatgpt");
+
+  void _onSendPressed(types.PartialText text) async {
+    setState(() {
+      messages = [
+        types.TextMessage(
+          author: user,
+          createdAt: DateTime.now().millisecondsSinceEpoch,
+          id: const Uuid().v4(),
+          text: text.text,
+        ),
+        ...messages
+      ];
+    });
+
+    await _getNextPrompt(text.text).then((value) => setState(() {
+          messages = [
+            (types.TextMessage(
+              author: chatGpt,
+              createdAt: DateTime.now().millisecondsSinceEpoch,
+              id: const Uuid().v4(),
+              text: value,
+            )),
+            ...messages
+          ];
+        }));
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
         body: Chat(
           messages: messages,
-          onSendPressed: (types.PartialText text) async {
-            setState(() {
-              messages = [
-                types.TextMessage(
-                  author: user,
-                  createdAt: DateTime.now().millisecondsSinceEpoch,
-                  id: const Uuid().v4(),
-                  text: text.text,
-                ),
-                ...messages
-              ];
-            });
-
-            await _getNextPrompt(text.text).then((value) => setState(() {
-                  messages = [
-                    (types.TextMessage(
-                      author: chatGpt,
-                      createdAt: DateTime.now().millisecondsSinceEpoch,
-                      id: const Uuid().v4(),
-                      text: value,
-                    )),
-                    ...messages
-                  ];
-                }));
-          },
+          onSendPressed: _onSendPressed,
           user: user,
         ),
       ),
