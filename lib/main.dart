@@ -8,7 +8,10 @@ import 'package:uuid/uuid.dart';
 
 const String openAiAPIKey = String.fromEnvironment("apikey");
 
-Future<String> _getNextPrompt(String question) async {
+Future<String> _getNextPrompt(
+  String question, {
+  List<Map<String, dynamic>>? withLastMessages,
+}) async {
   final response = await post(
     Uri.parse("https://api.openai.com/v1/chat/completions"),
     headers: {
@@ -18,7 +21,8 @@ Future<String> _getNextPrompt(String question) async {
     body: jsonEncode({
       "model": "gpt-3.5-turbo",
       "messages": [
-        {"role": "user", "content": question}
+        {"role": "user", "content": question},
+        ...withLastMessages ?? []
       ],
       "max_tokens": 1000,
     }),
@@ -39,7 +43,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  List<types.Message> messages = [];
+  List<types.TextMessage> messages = [];
   final user = const types.User(id: "user");
   final chatGpt = const types.User(id: "chatgpt");
 
@@ -56,17 +60,24 @@ class _MyAppState extends State<MyApp> {
       ];
     });
 
-    await _getNextPrompt(text.text).then((value) => setState(() {
-          messages = [
-            (types.TextMessage(
-              author: chatGpt,
-              createdAt: DateTime.now().millisecondsSinceEpoch,
-              id: const Uuid().v4(),
-              text: value,
-            )),
-            ...messages
-          ];
-        }));
+    await _getNextPrompt(text.text,
+            withLastMessages: messages
+                .map((message) => {
+                      "role": message.author == user ? "user" : "assistant",
+                      "content": message.text,
+                    })
+                .toList())
+        .then((value) => setState(() {
+              messages = [
+                (types.TextMessage(
+                  author: chatGpt,
+                  createdAt: DateTime.now().millisecondsSinceEpoch,
+                  id: const Uuid().v4(),
+                  text: value,
+                )),
+                ...messages
+              ];
+            }));
   }
 
   @override
