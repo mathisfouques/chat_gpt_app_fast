@@ -21,28 +21,26 @@ Future<String> _getNextPrompt(
     body: jsonEncode({
       "model": "gpt-3.5-turbo",
       "messages": [
+        ...withLastMessages ?? [],
         {"role": "user", "content": question},
-        ...withLastMessages ?? []
       ],
       "max_tokens": 1000,
     }),
   );
 
-  print(jsonDecode(response.body));
-
   return (jsonDecode(response.body)["choices"] as List).first["message"]
       ["content"];
 }
 
-void main() => runApp(const MyApp());
+void main() => runApp(const ChatGptApp());
 
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+class ChatGptApp extends StatefulWidget {
+  const ChatGptApp({super.key});
   @override
-  State<MyApp> createState() => _MyAppState();
+  State<ChatGptApp> createState() => _ChatGptAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _ChatGptAppState extends State<ChatGptApp> {
   List<types.TextMessage> messages = [];
   final user = const types.User(id: "user");
   final chatGpt = const types.User(id: "chatgpt");
