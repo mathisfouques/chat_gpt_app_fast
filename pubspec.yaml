@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
 
+  flutter_bloc: ^8.1.2
   flutter_chat_ui: ^1.6.6
   http: ^0.13.6
   uuid: ^3.0.7
