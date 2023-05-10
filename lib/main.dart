@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:http/http.dart';
@@ -23,8 +24,6 @@ Future<String> _getNextPrompt(String question) async {
       "max_tokens": 1000,
     }),
   );
-
-  print(jsonDecode(response.body));
 
   return (jsonDecode(response.body)["choices"] as List).first["message"]
       ["content"];
