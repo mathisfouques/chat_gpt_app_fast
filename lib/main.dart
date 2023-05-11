@@ -4,9 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:http/http.dart';
+import 'package:isar/isar.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
+import 'chat_stored.dart';
+
 const String openAiAPIKey = String.fromEnvironment("apikey");
+const user = types.User(id: "user");
+const chatGpt = types.User(id: "chatgpt");
 
 Future<String> _getNextPrompt(
   String question, {
@@ -32,20 +38,63 @@ Future<String> _getNextPrompt(
       ["content"];
 }
 
-void main() => runApp(const ChatGptApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-class ChatGptApp extends StatefulWidget {
-  const ChatGptApp({super.key});
-  @override
-  State<ChatGptApp> createState() => _ChatGptAppState();
+  final dir = await getApplicationDocumentsDirectory();
+  final isar = await Isar.open([ChatStoredSchema], directory: dir.path);
+
+  await isar.writeTxn(() async {
+    final chats = await isar.chatStoreds.where().findAll();
+
+    if (chats.isEmpty) await isar.chatStoreds.put(ChatStored());
+  });
+
+  runApp(MaterialApp(home: ChatGptAppScaffold(isarStorage: isar)));
 }
 
-class _ChatGptAppState extends State<ChatGptApp> {
+class ChatGptAppScaffold extends StatelessWidget {
+  final Isar isarStorage;
+
+  const ChatGptAppScaffold({super.key, required this.isarStorage});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(
+          backgroundColor: const Color(0xff1d1c21),
+        ),
+        drawer: ChatGPTDrawer(chatStorage: isarStorage),
+        body: ChatGPTBody(
+          chatStorage: isarStorage,
+          currentChatId: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class ChatGPTBody extends StatefulWidget {
+  const ChatGPTBody({
+    super.key,
+    required this.chatStorage,
+    required this.currentChatId,
+  });
+
+  final Isar chatStorage;
+  final int currentChatId;
+
+  @override
+  State<ChatGPTBody> createState() => _ChatGPTBodyState();
+}
+
+class _ChatGPTBodyState extends State<ChatGPTBody> {
   List<types.TextMessage> messages = [];
-  final user = const types.User(id: "user");
-  final chatGpt = const types.User(id: "chatgpt");
 
   void _onSendPressed(types.PartialText text) async {
+    final List<MessageStored> toAddToStorage = [];
+
     setState(() {
       messages = [
         types.TextMessage(
@@ -56,6 +105,10 @@ class _ChatGptAppState extends State<ChatGptApp> {
         ),
         ...messages
       ];
+
+      toAddToStorage.add(MessageStored()
+        ..author = Participant.assistant
+        ..text = text.text);
     });
 
     await _getNextPrompt(text.text,
@@ -75,17 +128,59 @@ class _ChatGptAppState extends State<ChatGptApp> {
                 )),
                 ...messages
               ];
+
+              toAddToStorage.add(MessageStored()
+                ..author = Participant.assistant
+                ..text = value);
             }));
+
+    await widget.chatStorage.writeTxn(
+      () async {
+        ChatStored? currentChat =
+            await widget.chatStorage.chatStoreds.get(widget.currentChatId);
+
+        if (currentChat == null) return;
+
+        currentChat = ChatStored()
+          ..id = widget.currentChatId
+          ..messages = [...toAddToStorage, ...currentChat.messages];
+
+        await widget.chatStorage.chatStoreds.put(currentChat);
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        body: Chat(
-          messages: messages,
-          onSendPressed: _onSendPressed,
-          user: user,
+    return SafeArea(
+      bottom: false,
+      child: Chat(
+        messages: messages,
+        onSendPressed: _onSendPressed,
+        user: user,
+      ),
+    );
+  }
+}
+
+class ChatGPTDrawer extends StatelessWidget {
+  const ChatGPTDrawer({super.key, required this.chatStorage});
+
+  final Isar chatStorage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xff1d1c21),
+      padding: const EdgeInsets.all(16),
+      width: MediaQuery.of(context).size.width * 0.8,
+      child: SafeArea(
+        child: FutureBuilder<List<ChatStored>>(
+          future: chatStorage.chatStoreds.where().findAll(),
+          builder: (context, snapshot) => Column(
+            children:
+                snapshot.data?.map((e) => Text(e.id.toString())).toList() ?? [],
+          ),
         ),
       ),
     );
